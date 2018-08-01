@@ -189,7 +189,7 @@ class quad_controller:
   def start_thread_and_append(self, method):
     t = threading.Thread(target=method)
     t.start()
-    self.threads.append[t]
+    self.threads.append(t)
 
   def start(self):
     self.start_thread_and_append(self.keep_alive)

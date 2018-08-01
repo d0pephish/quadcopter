@@ -62,7 +62,7 @@ class failsafe_and_stuff:
     while not self.safe_exit:
       data, addr = sock.recvfrom(1)
       print "received message:", data
-      if addr == self.base_ip:
+      if addr[0] == self.base_ip:
         self.last_udp_heartbeat = time.time()
       if data == "A":
         self.connnected = True
