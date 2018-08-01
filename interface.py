@@ -239,8 +239,8 @@ class quad_controller:
         self.put("Going to land.")
         self.vehicle.mode = VehicleMode("LAND")
       elif char == "f":
-        self.put("Taking off to %d meter." % 1)
-        self.arm_and_takeoff(1)
+        self.put("Taking off to %d meter." % self.starting_height)
+        self.arm_and_takeoff(self.starting_height)
         #self.vehicle.mode = VehicleMode("LOITER")
       elif char == "r":
         self.put("Returning to Launch.")
@@ -263,7 +263,7 @@ class quad_controller:
         char = self.get_char()
         try:
           if int(char)>0 and int(char) < 50:
-            self.starting_height = int(chr)
+            self.starting_height = int(char)
         except:
           pass
     self.teardown()
