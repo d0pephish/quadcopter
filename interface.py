@@ -270,6 +270,6 @@ class quad_controller:
 
 
 if __name__ == "__main__":
-  controller = quad_controller(ip="127.0.0.1")
+  controller = quad_controller(ip="10.0.0.1",mode="real")
   controller.start()
 

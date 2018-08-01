@@ -7,6 +7,7 @@ class failsafe_and_stuff:
   def __init__(self,base_ip="10.0.0.2",ping_timeout=8, ping_delay=2, cmd_delay=3,cmd_udp_port=12357,debug=False):
     self.base_ip = base_ip
     self.connected = False
+    self.udp_connected = False
     self.ping_delay = ping_delay
     self.cmd_delay = cmd_delay
     self.ping_timeout = ping_timeout
@@ -65,10 +66,12 @@ class failsafe_and_stuff:
       if addr[0] == self.base_ip:
         self.last_udp_heartbeat = time.time()
       if data == "A":
+        self.udp_connnected = True
         self.connnected = True
         pass #alive
       elif data == "K":
-        self.add_thread_and_start(threading.Thread(target=self.trigger_failsafe)) # kill
+        if self.udp_connected:
+          self.add_thread_and_start(threading.Thread(target=self.trigger_failsafe)) # kill
       elif data == "D":
         self.add_thread_and_start(threading.Thread(target=self.trigger_deauth)) # deauth
       elif data == "Z":
