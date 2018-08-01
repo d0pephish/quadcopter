@@ -54,7 +54,7 @@ class failsafe_and_stuff:
     
   def trigger_deauth(self):
     self.debug("deauth activated")
-    pass
+    #os.system("ps -ef | egrep deauth.s[h] | egrep -v grep || bash deauth.sh")
 
   def udp_listener(self):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
