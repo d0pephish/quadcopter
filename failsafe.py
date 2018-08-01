@@ -87,22 +87,6 @@ class failsafe_and_stuff:
 if __name__ == "__main__":
 #  def __init__(self,base_ip="10.0.0.2",ping_timeout=8, ping_delay=2, cmd_delay=3,cmd_udp_port=12357,debug=False):
 
-  failsafe = failsafe_and_stuff(ping_timeout = -1, base_ip="127.0.0.1", cmd_delay = -1,debug=True)  
+  failsafe = failsafe_and_stuff(ping_timeout = 10, base_ip="10.0.0.2", cmd_delay = 3,debug=True)  
 
 
-"""
-#!/bin/bash
-
-#don't activate until comms are established
-while true; do
-  ping 10.0.0.2 -W1 -c 1 2>/dev/null 1>/dev/null && break
-done
-
-echo "Connection with client established. Failsafe activated."
-
-while true; do
-  test -e /tmp/disable_failsafe && break
-  ping 10.0.0.2 -c 1 -W5 2>/dev/null 1>/dev/null && ( echo good heartbeat at $(date) ) || ( reboot -f || init 0 )
-  sleep 2
-done
-"""
