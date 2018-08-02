@@ -105,15 +105,16 @@ class quad_controller:
 
 
   def build_real_connect(self):
-    self.connect_string = "%s:%d" % ( self.ip, self.mavlink_port)
+    self.connection_string = "%s:%d" % ( self.mavlink_ip, self.mavlink_port)
 
   def build_simulated_connect(self):
     import dronekit_sitl
     sitl = dronekit_sitl.start_default()
     self.connection_string = sitl.connection_string()
 
-  def __init__(self,mode="sim", ip="10.0.0.1", starting_height = 1, mavlink_port=5600, command_port=12357):
+  def __init__(self,mode="sim", ip="10.0.0.1", mavlink_ip= "10.0.0.2", starting_height = 1, mavlink_port=6000, command_port=12357):
     self.line = 0
+    self.mavlink_ip = mavlink_ip
     self.orig_stdout = sys.stdout
     self.orig_stderr = sys.stderr
     self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -207,6 +208,7 @@ class quad_controller:
       self.put("WASD for NSEW movement. EQ for CW/CCW yaw.")
       self.put("R to RTL, F to take-off, L to land. U to update.")
       self.put("H to change starting height. P for deauth packet broadcast.")
+      self.put("C for QGroundControl camera. N for raw nc stream camera. M for N plus save to disk. B for no cam")
       self.put("K to activate killswitch. \\ to deactivate killswitch")
       c = self.stdscr.getch()
       if c < 127:
@@ -251,6 +253,18 @@ class quad_controller:
       elif char == "k":
         self.send_command("K")
         self.put("activating killswitch")
+      elif char == "c":
+        self.send_command("C")
+        self.put("turning on QGC camera")
+      elif char == "m":
+        self.send_command("M")
+        self.put("saving to disk, then turning on nc camera")
+      elif char == "b":
+        self.send_command("B")
+        self.put("turning off camera")
+      elif char == "n":
+        self.send_command("N")
+        self.put("turning on nc camera")
       elif char == "p":
         self.send_command("D")
         self.put("activating deauth")
