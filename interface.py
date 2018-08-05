@@ -51,7 +51,7 @@ class quad_controller:
 
       self.put("Arming motors")
       # Copter should arm in GUIDED mode
-      self.vehicle.mode    = VehicleMode("STABILIZE")
+      self.vehicle.mode    = VehicleMode("GUIDED")
       self.vehicle.armed   = True
 
       # Confirm vehicle armed before attempting to take off
@@ -202,7 +202,10 @@ class quad_controller:
       self.put(self.vehicle.gps_0)
       self.put(self.vehicle.battery)
       self.put("Last Hearbeat: %s" % self.vehicle.last_heartbeat)
-      self.put("Start Alt:%d (m) Cur Alt: %s" % (self.starting_height, self.vehicle.location.global_relative_frame.alt))
+      self.put("Start Alt:%d (m)" % (self.starting_height))
+      self.put("Cur Alt:%s (m)" % (self.vehicle.location.global_relative_frame.alt))
+      self.put("Cur Lat:%s (m)" % (self.vehicle.location.global_relative_frame.lat))
+      self.put("Cur Lon:%s (m)" % (self.vehicle.location.global_relative_frame.lon))
       self.put("Armable: %s" % self.vehicle.is_armable)
       self.put("System Status: %s" % self.vehicle.system_status.state)
       self.put("Mode: %s" % self.vehicle.mode.name)
