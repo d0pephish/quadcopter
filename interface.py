@@ -10,10 +10,10 @@ from dronekit import connect, VehicleMode, mavutil
 # velocity_y < 0 => fly West
 # velocity_z < 0 => ascend
 # velocity_z > 0 => descend
-SOUTH = (-1,0,0,5)
-NORTH = (1,0,0,5)
-EAST = (0,1,0,5)
-WEST = (0,-1,0,5)
+SOUTH = (-1,0,0,2)
+NORTH = (1,0,0,2)
+EAST = (0,1,0,2)
+WEST = (0,-1,0,2)
 
 
 class quad_controller:
@@ -51,7 +51,7 @@ class quad_controller:
 
       self.put("Arming motors")
       # Copter should arm in GUIDED mode
-      self.vehicle.mode    = VehicleMode("GUIDED")
+      self.vehicle.mode    = VehicleMode("STABILIZE")
       self.vehicle.armed   = True
 
       # Confirm vehicle armed before attempting to take off
@@ -196,6 +196,7 @@ class quad_controller:
     self.start_thread_and_append(self.keep_alive)
     self.build_curses()
     self.quad_connect()
+    time.sleep(0.5)
     while self.started:
       self.clear()
       self.put(self.vehicle.gps_0)
@@ -205,11 +206,13 @@ class quad_controller:
       self.put("Armable: %s" % self.vehicle.is_armable)
       self.put("System Status: %s" % self.vehicle.system_status.state)
       self.put("Mode: %s" % self.vehicle.mode.name)
-      self.put("WASD for NSEW movement. EQ for CW/CCW yaw.")
-      self.put("R to RTL, F to take-off, L to land. U to update.")
-      self.put("H to change starting height. P for deauth packet broadcast.")
-      self.put("C for QGroundControl camera. N for raw nc stream camera. M for N plus save to disk. B for no cam")
-      self.put("K to activate killswitch. \\ to deactivate killswitch")
+      self.put("WASD=>NSEW move. EQ=>CW/CCW yaw.")
+      self.put("R:RTL T:take-off L:land U:update")
+      self.put("H:change start height P:deauth")
+      self.put("C:QGC camera N:raw stream")
+      self.put("M:N+save to disk. B:no cam")
+      self.put("K:kill ]:failsafe \\:no failsafe")
+      self.put("X:exit on remote end Z:quit local")
       c = self.stdscr.getch()
       if c < 127:
         char = str(chr(c)).lower()
@@ -220,16 +223,16 @@ class quad_controller:
       elif char == "u":
         pass
       elif char == "w":
-        self.put("Going north for 0.5 seconds.")
+        self.put("Going north for 0.2 seconds.")
         self.send_ned_velocity(*NORTH)
       elif char == "a":
-        self.put("Going west for 0.5 seconds.")
+        self.put("Going west for 0.2 seconds.")
         self.send_ned_velocity(*WEST)
       elif char == "s":
-        self.put("Going south for 0.5 seconds.")
+        self.put("Going south for 0.2 seconds.")
         self.send_ned_velocity(*SOUTH)
       elif char == "d":
-        self.put("Going east for 0.5 seconds.")
+        self.put("Going east for 0.2 seconds.")
         self.send_ned_velocity(*EAST)
       elif char == "e":
         self.put("Adjusting yaw CW for 10 degrees.")
@@ -240,7 +243,7 @@ class quad_controller:
       elif char == "l":
         self.put("Going to land.")
         self.vehicle.mode = VehicleMode("LAND")
-      elif char == "f":
+      elif char == "t":
         self.put("Taking off to %d meter." % self.starting_height)
         self.arm_and_takeoff(self.starting_height)
         #self.vehicle.mode = VehicleMode("LOITER")
@@ -265,12 +268,18 @@ class quad_controller:
       elif char == "n":
         self.send_command("N")
         self.put("turning on nc camera")
+      elif char == "]":
+        self.send_command("F")
+        self.put("failsafe enabled")
+      elif char == "x":
+        self.send_command("X")
+        self.put("remote exit")
       elif char == "p":
         self.send_command("D")
         self.put("activating deauth")
       elif char == "\\":
         self.send_command("Z")
-        self.put("disarming failsafe")
+        self.put("disabling failsafe")
 
       elif char == "h":
         self.put("What new default height would you like to use?")
@@ -284,6 +293,6 @@ class quad_controller:
 
 
 if __name__ == "__main__":
-  controller = quad_controller(ip="10.0.0.1",mode="real")
+  controller = quad_controller(ip="10.0.0.1",mode="sim")
   controller.start()
 

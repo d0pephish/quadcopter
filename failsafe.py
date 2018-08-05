@@ -5,6 +5,7 @@ import ping, os, time, socket, threading
 class failsafe_and_stuff:
 
   def __init__(self,base_ip="10.0.0.2",ping_timeout=8, ping_delay=2, cmd_delay=3,cmd_udp_port=12357,debug=False):
+    self.failsafe_disabled = False
     self.base_ip = base_ip
     self.connected = False
     self.udp_connected = False
@@ -50,8 +51,9 @@ class failsafe_and_stuff:
           self.trigger_failsafe(source="ping")
 
   def trigger_failsafe(self,source=""):
-    self.debug("failsafe activated %s" % source)
-    os.system("reboot")
+    if not self.failsafe_disabled:
+      self.debug("failsafe activated %s" % source)
+      os.system("reboot")
     
   def trigger_deauth(self):
     self.debug("deauth activated")
@@ -75,6 +77,14 @@ class failsafe_and_stuff:
     self.debug("stopping raspivid")
     os.system("pkill raspivid")
 
+  def enable_failsafe(self):
+    print "failsafe enabled"
+    self.failsafe_disabled = False
+
+  def disable_failsafe(self):
+    print "failsafe disabled"
+    self.failsafe_disabled = True
+
   def udp_listener(self):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind(("0.0.0.0",self.cmd_udp_port))
@@ -89,6 +99,7 @@ class failsafe_and_stuff:
         self.connnected = True
         pass #alive
       elif data == "K":
+        self.enable_failsafe()
         self.add_thread_and_start(threading.Thread(target=self.trigger_failsafe)) # kill
       elif data == "D":
         self.add_thread_and_start(threading.Thread(target=self.trigger_deauth)) # deauth
@@ -101,6 +112,10 @@ class failsafe_and_stuff:
       elif data == "N":
         self.add_thread_and_start(threading.Thread(target=self.trigger_nc_cam)) # kill camera and launch raw nc over udp
       elif data == "Z":
+        self.disable_failsafe()
+      elif data == "F":
+	self.enable_failsafe()
+      elif data == "X":
         self.safe_exit = True # we are done
 
   def udp_failsafe(self):
