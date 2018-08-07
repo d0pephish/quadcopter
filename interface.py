@@ -1,6 +1,6 @@
 import curses, time, sys, socket, threading
 
-from dronekit import connect, VehicleMode, mavutil
+from dronekit import *
 
 
 # Set up velocity mappings
@@ -14,9 +14,95 @@ SOUTH = (-1,0,0,2)
 NORTH = (1,0,0,2)
 EAST = (0,1,0,2)
 WEST = (0,-1,0,2)
+UP = (0,0,-1,2)
+DOWN = (0,0,1,2)
 
 
 class quad_controller:
+
+  def get_location_metres(self,original_location, dNorth, dEast):
+      """
+      Returns a LocationGlobal object containing the latitude/longitude `dNorth` and `dEast` metres from the 
+      specified `original_location`. The returned LocationGlobal has the same `alt` value
+      as `original_location`.
+
+      The function is useful when you want to move the vehicle around specifying locations relative to 
+      the current vehicle position.
+
+      The algorithm is relatively accurate over small distances (10m within 1km) except close to the poles.
+
+      For more information see:
+      http://gis.stackexchange.com/questions/2951/algorithm-for-offsetting-a-latitude-longitude-by-some-amount-of-meters
+      """
+      earth_radius = 6378137.0 #Radius of "spherical" earth
+      #Coordinate offsets in radians
+      dLat = dNorth/earth_radius
+      dLon = dEast/(earth_radius*math.cos(math.pi*original_location.lat/180))
+
+      #New position in decimal degrees
+      newlat = original_location.lat + (dLat * 180/math.pi)
+      newlon = original_location.lon + (dLon * 180/math.pi)
+      if type(original_location) is LocationGlobal:
+          targetlocation=LocationGlobal(newlat, newlon,original_location.alt)
+      elif type(original_location) is LocationGlobalRelative:
+          targetlocation=LocationGlobalRelative(newlat, newlon,original_location.alt)
+      else:
+          raise Exception("Invalid Location object passed")
+          
+      return targetlocation;
+
+
+  def get_distance_metres(self, aLocation1, aLocation2):
+      """
+      Returns the ground distance in metres between two LocationGlobal objects.
+
+      This method is an approximation, and will not be accurate over large distances and close to the 
+      earth's poles. It comes from the ArduPilot test code: 
+      https://github.com/diydrones/ardupilot/blob/master/Tools/autotest/common.py
+      """
+      dlat = aLocation2.lat - aLocation1.lat
+      dlong = aLocation2.lon - aLocation1.lon
+      return math.sqrt((dlat*dlat) + (dlong*dlong)) * 1.113195e5
+
+
+  def get_bearing(self, aLocation1, aLocation2):
+      """
+      Returns the bearing between the two LocationGlobal objects passed as parameters.
+
+      This method is an approximation, and may not be accurate over large distances and close to the 
+      earth's poles. It comes from the ArduPilot test code: 
+      https://github.com/diydrones/ardupilot/blob/master/Tools/autotest/common.py
+      """	
+      off_x = aLocation2.lon - aLocation1.lon
+      off_y = aLocation2.lat - aLocation1.lat
+      bearing = 90.00 + math.atan2(-off_y, off_x) * 57.2957795
+      if bearing < 0:
+          bearing += 360.00
+      return bearing;
+
+
+  def goto(self,dNorth=-1, dEast=-1, gotoFunction=False):
+      if gotoFunction == False:
+        gotoFunction = self.vehicle.simple_goto
+      if dNorth == -1:
+        dNorth = self.coords_goto[0]
+      if dEast == -1:
+        dEast = self.coords_goto[1]
+      self.put("goto started, dNorth:%f, dEast:%f" %(dNorth,dEast))
+      currentLocation=self.vehicle.location.global_relative_frame
+      targetLocation=self.get_location_metres(currentLocation, dNorth, dEast)
+      targetDistance=self.get_distance_metres(currentLocation, targetLocation)
+      gotoFunction(targetLocation)
+
+      while self.vehicle.mode.name=="GUIDED" and self.started: #Stop action if we are no longer in guided mode.
+          remainingDistance=self.get_distance_metres(self.vehicle.location.global_frame, targetLocation)
+          self.put("Distance to target: %s" % (remainingDistance))
+          if remainingDistance<=targetDistance*0.01: #Just below target, in case of undershoot.
+              self.put("Reached target")
+              break;
+          time.sleep(1)
+
+
 
   def send_ned_velocity(self,velocity_x, velocity_y, velocity_z, duration):
       """
@@ -38,7 +124,9 @@ class quad_controller:
           self.vehicle.send_mavlink(msg)
           time.sleep(0.1)
 
-  def arm_and_takeoff(self,aTargetAltitude):
+  def arm_and_takeoff(self,aTargetAltitude="-1"):
+      if aTargetAltitude == "-1":
+        aTargetAltitude = self.starting_height
       """
       Arms vehicle and fly to aTargetAltitude.
       """
@@ -120,9 +208,11 @@ class quad_controller:
     self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     self.mavlink_port = mavlink_port
     self.command_port = command_port
+    self.coors_goto = False
     self.ip = ip
     self.started = True
     self.threads = []
+    self.coords = {} #TODO: update this, implement manual entry
     self.starting_height = starting_height
 
     if mode == "sim":
@@ -191,6 +281,12 @@ class quad_controller:
     t = threading.Thread(target=method)
     t.start()
     self.threads.append(t)
+  
+  def read_coords(self, index):
+    try:
+      self.put("coordinates at index %s is: lat:%f,lon:%f" % (index, self.coords[index][0], self.coords[index][1]))
+    except:
+      self.put("error reading from coords at index:%s" % (index))
 
   def start(self):
     self.start_thread_and_append(self.keep_alive)
@@ -210,11 +306,12 @@ class quad_controller:
       self.put("System Status: %s" % self.vehicle.system_status.state)
       self.put("Mode: %s" % self.vehicle.mode.name)
       self.put("WASD=>NSEW move. EQ=>CW/CCW yaw.")
-      self.put("R:RTL T:take-off L:land U:update")
+      self.put("R:RTL T:take-off L:land I:view coords")
       self.put("H:change start height P:deauth")
       self.put("C:QGC camera N:raw stream")
       self.put("M:N+save to disk. B:no cam")
       self.put("K:kill ]:failsafe \\:no failsafe")
+      self.put("H:higher J:lower Y:coord G:goto")
       self.put("X:exit on remote end Z:quit local")
       c = self.stdscr.getch()
       if c < 127:
@@ -223,7 +320,7 @@ class quad_controller:
         pass
       if char == "z":
         self.started = False
-      elif char == "u":
+      elif char == " ":
         pass
       elif char == "w":
         self.put("Going north for 0.2 seconds.")
@@ -237,19 +334,39 @@ class quad_controller:
       elif char == "d":
         self.put("Going east for 0.2 seconds.")
         self.send_ned_velocity(*EAST)
+      elif char == "h":
+        self.put("Going higher for 0.2 seconds.")
+        self.send_ned_velocity(*UP)
+      elif char == "j":
+        self.put("Going lower for 0.2 seconds.")
+        self.send_ned_velocity(*DOWN)
       elif char == "e":
         self.put("Adjusting yaw CW for 10 degrees.")
         self.condition_yaw(10,relative=True)
       elif char == "q":
         self.put("Adjusting yaw CCW for 10 degrees.")
-        self.condition_yaw(-10,relative=False)
+        self.condition_yaw(-10,relative=True)
       elif char == "l":
         self.put("Going to land.")
         self.vehicle.mode = VehicleMode("LAND")
       elif char == "t":
         self.put("Taking off to %d meter." % self.starting_height)
-        self.arm_and_takeoff(self.starting_height)
-        #self.vehicle.mode = VehicleMode("LOITER")
+        self.start_thread_and_append(self.arm_and_takeoff)
+      elif char == "g":
+        self.put("Which coord index do you want to go to (0-9)")
+        char = self.get_char()
+        try:
+          if int(char)>=0 and int(char) < 9:
+            if self.coords[char]:
+              self.read_coords(char)
+              self.coords_goto = self.coords[char] 
+        except:
+          continue
+        self.put("press y to confirm")
+        char = self.get_char()
+        if char == "y" :
+          self.start_thread_and_append(self.goto)
+ 
       elif char == "r":
         self.put("Returning to Launch.")
         self.vehicle.parameters['RTL_ALT'] = 0
@@ -283,7 +400,27 @@ class quad_controller:
       elif char == "\\":
         self.send_command("Z")
         self.put("disabling failsafe")
-
+      elif char == "y":
+        self.put("Which coord index do you want to update (0-9)")
+        char = self.get_char()
+        try:
+          if int(char)>=0 and int(char) < 9:
+            self.put("lat:")
+            curses.nocbreak()
+            curses.echo()
+            lat = self.stdscr.getstr()
+            self.put("lon:")
+            lon = self.stdscr.getstr()
+            self.put("got lat:%s, long:%s" % (lat,lon))
+            curses.cbreak()
+            curses.noecho()
+            self.coords[char] = (float(lat),float(lon))
+            self.put("updated...")
+        except:
+          pass
+        self.read_coords(char)
+        self.put("press enter to continue")
+        self.get_char()
       elif char == "h":
         self.put("What new default height would you like to use?")
         char = self.get_char()
@@ -296,6 +433,6 @@ class quad_controller:
 
 
 if __name__ == "__main__":
-  controller = quad_controller(ip="10.0.0.1",mode="sim")
+  controller = quad_controller(ip="127.0.0.1",mode="sim")
   controller.start()
 
