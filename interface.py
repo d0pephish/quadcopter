@@ -97,10 +97,39 @@ class quad_controller:
       while self.vehicle.mode.name=="GUIDED" and self.started: #Stop action if we are no longer in guided mode.
           remainingDistance=self.get_distance_metres(self.vehicle.location.global_frame, targetLocation)
           self.put("Distance to target: %s" % (remainingDistance))
-          if remainingDistance<=targetDistance*0.01: #Just below target, in case of undershoot.
+#          if remainingDistance<=targetDistance*0.01: #Just below target, in case of undershoot.
+          if remainingDistance<=1: #Just below target, in case of undershoot.
               self.put("Reached target")
               break;
           time.sleep(1)
+
+  def my_goto(self):
+    final_lat = self.coords_goto[0]
+    final_lon = self.coords_goto[1]
+    while self.vehicle.mode.name=="GUIDED" and self.started:
+      cur_lat = self.vehicle.location.global_relative_frame.lat
+      cur_lon = self.vehicle.location.global_relative_frame.lon
+      X = 0
+      Y = 0
+      Z = 0
+      if final_lat - cur_lat > 0.00001: 
+        #go north
+        #(1,0,0,2)
+        X = 1
+      elif final_lat - cur_lat < -0.00001:
+        #go south
+        X = -1
+      if final_lon - cur_lon > 0.00001:
+        #go east
+        Y = 1
+      elif final_lon - cur_lon < -0.00001:
+        #go west
+        Y = -1
+      if X == Y == Z == 0:
+        break
+      else:
+        self.send_ned_velocity(X,Y,Z,1) 
+    self.put("Reached target")
 
 
 
@@ -299,9 +328,9 @@ class quad_controller:
       self.put(self.vehicle.battery)
       self.put("Last Hearbeat: %s" % self.vehicle.last_heartbeat)
       self.put("Start Alt:%d (m)" % (self.starting_height))
-      self.put("Cur Alt:%s (m)" % (self.vehicle.location.global_relative_frame.alt))
-      self.put("Cur Lat:%s (m)" % (self.vehicle.location.global_relative_frame.lat))
-      self.put("Cur Lon:%s (m)" % (self.vehicle.location.global_relative_frame.lon))
+      self.put("Cur Alt:%s (change: H)" % (self.vehicle.location.global_relative_frame.alt))
+      self.put("Cur Lat:%s " % (self.vehicle.location.global_relative_frame.lat))
+      self.put("Cur Lon:%s " % (self.vehicle.location.global_relative_frame.lon))
       self.put("Armable: %s" % self.vehicle.is_armable)
       self.put("System Status: %s" % self.vehicle.system_status.state)
       self.put("Mode: %s" % self.vehicle.mode.name)
@@ -311,7 +340,7 @@ class quad_controller:
       self.put("C:QGC camera N:raw stream")
       self.put("M:N+save to disk. B:no cam")
       self.put("K:kill ]:failsafe \\:no failsafe")
-      self.put("H:higher J:lower Y:coord G:goto")
+      self.put("U:higher J:lower Y:coord G:goto")
       self.put("X:exit on remote end Z:quit local")
       c = self.stdscr.getch()
       if c < 127:
@@ -334,18 +363,18 @@ class quad_controller:
       elif char == "d":
         self.put("Going east for 0.2 seconds.")
         self.send_ned_velocity(*EAST)
-      elif char == "h":
+      elif char == "u":
         self.put("Going higher for 0.2 seconds.")
         self.send_ned_velocity(*UP)
       elif char == "j":
         self.put("Going lower for 0.2 seconds.")
         self.send_ned_velocity(*DOWN)
       elif char == "e":
-        self.put("Adjusting yaw CW for 10 degrees.")
-        self.condition_yaw(10,relative=True)
+        self.put("Adjusting yaw CW for 25 degrees.")
+        self.condition_yaw(25,relative=True)
       elif char == "q":
-        self.put("Adjusting yaw CCW for 10 degrees.")
-        self.condition_yaw(-10,relative=True)
+        self.put("Adjusting yaw CCW for 25 degrees.")
+        self.condition_yaw(-25,relative=True)
       elif char == "l":
         self.put("Going to land.")
         self.vehicle.mode = VehicleMode("LAND")
@@ -365,7 +394,7 @@ class quad_controller:
         self.put("press y to confirm")
         char = self.get_char()
         if char == "y" :
-          self.start_thread_and_append(self.goto)
+          self.start_thread_and_append(self.my_goto)
  
       elif char == "r":
         self.put("Returning to Launch.")
@@ -433,6 +462,6 @@ class quad_controller:
 
 
 if __name__ == "__main__":
-  controller = quad_controller(ip="127.0.0.1",mode="sim")
+  controller = quad_controller(ip="10.0.0.1",mode="sim")
   controller.start()
 
